@@ -93,10 +93,10 @@ jobs:
           path: Refermie/build/app/outputs/bundle/release/app-release.aab
 
       # ─── Deploy to Play Store (main/master only) ─
-      - name: Decode Play Store service account JSON
+      - name: Write Play Store service account JSON
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         working-directory: Refermie
-        run: echo "${{ secrets.PLAY_STORE_JSON }}" | base64 --decode > android/fastlane/play-store-key.json
+        run: echo '${{ secrets.PLAY_STORE_JSON }}' > android/fastlane/play-store-key.json
 
       - name: Set up Ruby
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
