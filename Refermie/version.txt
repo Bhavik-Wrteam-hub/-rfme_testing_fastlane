@@ -1,0 +1,11 @@
+##Used in this code
+
+App Code version V1.1.4 (Note: Admin panel and app version should be match.)
+
+##Flutter
+
+Flutter 3.19.5 • channel stable 
+Framework • revision 300451adae 
+Engine • revision e76c956498
+Tools • Dart 3.3.3 • DevTools 2.31.1
+

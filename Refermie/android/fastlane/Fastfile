@@ -1,0 +1,20 @@
+default_platform(:android)
+
+platform :android do
+
+  desc "Upload pre-built AAB to Play Store production"
+  lane :deploy do
+
+    # Project root is two levels up from android/fastlane/
+    project_root = File.expand_path('../../', __dir__)
+    aab_path = File.join(project_root, 'build', 'app', 'outputs', 'bundle', 'release', 'app-release.aab')
+
+    # Upload to Play Store (AAB is already built by CI)
+    upload_to_play_store(
+      track: 'production',
+      aab: aab_path
+    )
+
+  end
+
+end

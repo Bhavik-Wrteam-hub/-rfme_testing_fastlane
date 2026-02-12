@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "refermie-dce26",
+  "private_key_id": "cf873821f585d6e9c5fe4905ef5b35805cdbb0c4",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC3UuiFLtaD1Kal\nRL7keGt0Pwl7wbIXQTziSmPML1huAwRp8MJd/tKPHS9iPJ95GopkSvDRuPFmNPdW\nN7jhbvI/x8lKFTD13MoXgb3bU8N8GMs79EsqY/RF9hlnpmDmsliISPdfsQSYzUP2\nJAw8DBXvqq0sw+zxL4Gpu3X1Dlzo1wzXHY3b4TJVY2vVvdPFB27gfLQbnFdDyjWq\nkxUonN175GOlOyx7kmiYOBvZJSL+dt1ovwsccJtZoXmJ+5e23HfNkX94m+n/CytH\nWGOH6r8XZDWCUGYTJVeL2WmR4/mSGV5O2Z+XRa88hWliLjWQ2sNbI4WrrrdFY+9m\nKAplV8dnAgMBAAECggEAPZ6QCogyUZCOTRnc4jW5xJKVsPPr1RY4DUX84np9ikjY\nWHW1F1waUUF5llcTMWUi5FAuPwgfl/+wrVnAeoHMynRwa8bQtKt4gEs7UjgHCrTY\nxze3djGvvz5XzreldZW33WNNRuxcw7GnKNp4BEz5qJvhZp0ajP0vY6pfnTWtNBPX\nGBJXZPNDjA7v5F8/o9ExSPqbeOsIGB5h9/+jFpf0lcPr10lOeC+pKaccxXf9pxxv\n9+L4+CbgUgBOh7srS0OppwlKS6LEHp3V74f0/DCnN9pPC0xq+SgzZkIoHgTORQ6n\npfgb5DKaob5DvKPQi3ZeFWLNWEbVM6zA4T9RghQGTQKBgQDa6JqIqkZvODdu8ku3\nUCUEafQAzy92W0TwEBUlX0ZYNMhCuKilEwNPG/urS9JGaJvha9jTMSS1TyU9OWjC\nhi+a5EI2aMlLmSas+PHcXAsJAtZRX8Ml1ps+DqFZ7tnLjz4fVMiVnqOQRtSeVcZZ\niYtEpD7SjiZE4MKBTmhuQZpmowKBgQDWYscmjh60aMTEmNjQeEqbA83KJU7U3eqa\nVfiyhaYuv65OVnhHfEpa/y0NzgopxGFZVo104JPeo71lWt4jeNgVY3w1oz0CRGCR\nU3l1fOPlX4XkHcUg+uf1Wmgd2/wtsvAERrHJWO1wzHuOYWo74L2MWV3L/Wdg8BM/\nnoBFVGLcbQKBgDTLsKmRV5dvWX86lKRLggIEg8LGNU44SPIVDuSKi+6uHDZrTtEx\nOrUTrKjtinNMu3ushQi6a34G7pZLiEaSEl0q/AUfVJ0U/Mzu5XYeBNNRidrqW6h+\nj8ZxxNxpzMFZdMQdsJrVPeGIE7N0QHhLwfj2G+iwO+6UvpRtEqa0z8Y9AoGAPWQV\n4V2LP2BNEHswgyofOxqwwHVEiMJvnviFeiG5f+OV94rdcKMP69TswupAkMtSkTGu\n2kxBK905rB+EQyYkwqM1e2qeWtrXyGXd/x3faNycy8EWpSYUbHcSH5LSOQfnoWHZ\nIW5cuBNmQlR1BmaKAPnKWVLcWq8E5A/wbWoH0VUCgYEAt4/2ALg1NTW85Fmpi/0K\n0zV99BAOb1PcUX3ZTxtDBBpdDAIs6cmoqVC0jP0i+3xzNq6Tum8Of7GwyYDmRhBF\nDnY1cQfShFqzCMKyuBEEZKyAZekLqN9cZhrT619gmEtPna61Sodgrw9WKwBJNdgS\nJoOGa41DAS+PoFLhG/fZM/A=\n-----END PRIVATE KEY-----\n",
+  "client_email": "github-actions-play-store@refermie-dce26.iam.gserviceaccount.com",
+  "client_id": "101701599859782700419",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/github-actions-play-store%40refermie-dce26.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

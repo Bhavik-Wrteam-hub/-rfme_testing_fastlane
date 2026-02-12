@@ -1,0 +1,207 @@
+name: "Build & Release"
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  push:
+    branches:
+      - main
+      - master
+      - develop
+
+jobs:
+  # ═══════════════════════════════════════════════
+  # JOB 1: Android Build + Play Store Deploy
+  # Runs on Ubuntu (3x faster boot, 10x cheaper)
+  # ═══════════════════════════════════════════════
+  android:
+    name: Android Build & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ─── Java + Gradle cache ────────────────────
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "21"
+          cache: "gradle"
+
+      # ─── Flutter (cached) ──────────────────────
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.9"
+          channel: "stable"
+          cache: true
+
+      # ─── Pub dependency cache ──────────────────
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            Refermie/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('Refermie/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      # ─── NDK cache ─────────────────────────────
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_HOME }}/ndk
+          key: ndk-${{ runner.os }}-${{ hashFiles('Refermie/android/app/build.gradle') }}
+          restore-keys: |
+            ndk-${{ runner.os }}-
+
+      # ─── Android build cache (compiled classes) ─
+      - name: Cache Android build
+        uses: actions/cache@v4
+        with:
+          path: |
+            Refermie/build
+            Refermie/android/.gradle
+          key: android-build-${{ runner.os }}-${{ hashFiles('Refermie/pubspec.lock', 'Refermie/android/app/build.gradle') }}
+          restore-keys: |
+            android-build-${{ runner.os }}-
+
+      - name: Accept Android SDK licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Install dependencies
+        working-directory: Refermie
+        run: flutter pub get
+
+      # ─── Build AAB only (APK is redundant) ─────
+      - name: Build App Bundle (AAB)
+        working-directory: Refermie
+        run: flutter build appbundle --release
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+
+      # ─── Upload artifacts for release job ──────
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: Refermie/build/app/outputs/bundle/release/app-release.aab
+
+      # ─── Deploy to Play Store (main/master only) ─
+      - name: Decode Play Store service account JSON
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        working-directory: Refermie
+        run: echo "${{ secrets.PLAY_STORE_JSON }}" | base64 --decode > android/fastlane/play-store-key.json
+
+      - name: Set up Ruby
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: Refermie/android
+
+      - name: Install Fastlane
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        working-directory: Refermie/android
+        run: gem install fastlane
+
+      - name: Deploy to Play Store (Production)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        working-directory: Refermie/android
+        run: fastlane deploy
+        env:
+          SUPPLY_JSON_KEY: fastlane/play-store-key.json
+
+  # ═══════════════════════════════════════════════
+  # JOB 2: iOS Build (only on main/master push)
+  # Runs on macOS (required for iOS toolchain)
+  # ═══════════════════════════════════════════════
+  ios:
+    name: iOS Build
+    runs-on: macos-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.9"
+          channel: "stable"
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            Refermie/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('Refermie/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: Refermie/ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('Refermie/ios/Podfile.lock') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
+      - name: Install dependencies
+        working-directory: Refermie
+        run: flutter pub get
+
+      - name: Build iOS (no codesign)
+        working-directory: Refermie
+        run: |
+          flutter build ios --no-codesign
+          cd build/ios/iphoneos
+          mkdir Payload
+          cd Payload
+          ln -s ../Runner.app
+          cd ..
+          zip -r app.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: Refermie/build/ios/iphoneos/app.ipa
+
+  # ═══════════════════════════════════════════════
+  # JOB 3: Create GitHub Release (after builds)
+  # ═══════════════════════════════════════════════
+  release:
+    name: Push to Releases
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    needs: [android, ios]
+
+    steps:
+      - name: Download Android AAB
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aab
+          path: artifacts/android
+
+      - name: Download iOS IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+          path: artifacts/ios
+
+      - name: Push to Releases
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "artifacts/android/*,artifacts/ios/*"
+          tag: v1.0.${{ github.run_number }}
+          token: ${{ secrets.TOKEN }}
