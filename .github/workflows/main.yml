@@ -143,6 +143,7 @@ jobs:
           channel: "stable"
           cache: true
 
+      # ─── Pub dependency cache ──────────────────
       - name: Cache pub dependencies
         uses: actions/cache@v4
         with:
@@ -153,27 +154,51 @@ jobs:
           restore-keys: |
             pub-${{ runner.os }}-
 
+      # ─── CocoaPods cache ───────────────────────
       - name: Cache CocoaPods
         uses: actions/cache@v4
         with:
-          path: Refermie/ios/Pods
-          key: pods-${{ runner.os }}-${{ hashFiles('Refermie/ios/Podfile.lock') }}
+          path: |
+            Refermie/ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('Refermie/ios/Podfile', 'Refermie/pubspec.lock') }}
           restore-keys: |
             pods-${{ runner.os }}-
+
+      # ─── iOS DerivedData cache (compiled artifacts) ─
+      - name: Cache iOS DerivedData
+        uses: actions/cache@v4
+        with:
+          path: |
+            Refermie/build/ios
+            ~/Library/Developer/Xcode/DerivedData
+          key: ios-derived-${{ runner.os }}-${{ hashFiles('Refermie/ios/**/*.pbxproj', 'Refermie/pubspec.lock') }}
+          restore-keys: |
+            ios-derived-${{ runner.os }}-
 
       - name: Install dependencies
         working-directory: Refermie
         run: flutter pub get
 
+      # ─── Install CocoaPods (skip repo update for speed) ─
+      - name: Install CocoaPods dependencies
+        working-directory: Refermie/ios
+        run: |
+          pod install --repo-update=false || pod install
+
+      # ─── Build iOS with optimizations ──────────
       - name: Build iOS (no codesign)
         working-directory: Refermie
         run: |
-          flutter build ios --no-codesign
-          cd build/ios/iphoneos
+          flutter build ios --no-codesign --release --no-tree-shake-icons
+        env:
+          FLUTTER_BUILD_MODE: release
+
+      - name: Create IPA
+        working-directory: Refermie/build/ios/iphoneos
+        run: |
           mkdir Payload
-          cd Payload
-          ln -s ../Runner.app
-          cd ..
+          cp -r Runner.app Payload/
           zip -r app.ipa Payload
 
       - name: Upload IPA artifact
