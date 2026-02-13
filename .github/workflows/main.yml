@@ -1,24 +1,75 @@
 name: "Build & Release"
 
 on:
-  pull_request:
-    branches:
-      - main
-      - master
   push:
     branches:
       - main
       - master
       - develop
 
+# ─────────────────────────────────────────────────
+# COMMIT MESSAGE KEYWORDS:
+#   [release]  → Build & deploy both Android + iOS
+#   [android]  → Build & deploy Android only
+#   [ios]      → Build iOS only
+#   No keyword → Workflow is skipped (normal push)
+#
+# Examples:
+#   git commit -m "fix login bug [android]"
+#   git commit -m "v1.0.1 final [release]"
+#   git commit -m "update splash screen [ios]"
+#   git commit -m "refactor code"  ← no build
+# ─────────────────────────────────────────────────
+
 jobs:
   # ═══════════════════════════════════════════════
+  # JOB 0: Parse commit message and set flags
+  # ═══════════════════════════════════════════════
+  check:
+    name: Check Commit Triggers
+    runs-on: ubuntu-latest
+    outputs:
+      run_android: ${{ steps.flags.outputs.run_android }}
+      run_ios: ${{ steps.flags.outputs.run_ios }}
+
+    steps:
+      - name: Parse commit message for build triggers
+        id: flags
+        run: |
+          MSG="${{ github.event.head_commit.message }}"
+          echo "Commit message: $MSG"
+
+          RUN_ANDROID="false"
+          RUN_IOS="false"
+
+          # [release] triggers both
+          if echo "$MSG" | grep -iq '\[release\]'; then
+            RUN_ANDROID="true"
+            RUN_IOS="true"
+          fi
+
+          # [android] triggers Android
+          if echo "$MSG" | grep -iq '\[android\]'; then
+            RUN_ANDROID="true"
+          fi
+
+          # [ios] triggers iOS
+          if echo "$MSG" | grep -iq '\[ios\]'; then
+            RUN_IOS="true"
+          fi
+
+          echo "run_android=$RUN_ANDROID" >> $GITHUB_OUTPUT
+          echo "run_ios=$RUN_IOS" >> $GITHUB_OUTPUT
+          echo "→ Android: $RUN_ANDROID | iOS: $RUN_IOS"
+
+  # ═══════════════════════════════════════════════
   # JOB 1: Android Build + Play Store Deploy
-  # Runs on Ubuntu (3x faster boot, 10x cheaper)
   # ═══════════════════════════════════════════════
   android:
     name: Android Build & Deploy
     runs-on: ubuntu-latest
+    needs: check
+    if: needs.check.outputs.run_android == 'true'
 
     steps:
       - name: Checkout repository
@@ -99,12 +150,12 @@ jobs:
 
       # ─── Deploy to Play Store (main/master only) ─
       - name: Write Play Store service account JSON
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         working-directory: Refermie
         run: echo '${{ secrets.PLAY_STORE_JSON }}' > android/fastlane/play-store-key.json
 
       - name: Set up Ruby
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
@@ -112,25 +163,25 @@ jobs:
           working-directory: Refermie/android
 
       - name: Install Fastlane
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         working-directory: Refermie/android
         run: gem install fastlane
 
       - name: Deploy to Play Store (Production)
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         working-directory: Refermie/android
         run: fastlane deploy
         env:
           SUPPLY_JSON_KEY: fastlane/play-store-key.json
 
   # ═══════════════════════════════════════════════
-  # JOB 2: iOS Build (only on main/master push)
-  # Runs on macOS (required for iOS toolchain)
+  # JOB 2: iOS Build (macOS required)
   # ═══════════════════════════════════════════════
   ios:
     name: iOS Build
     runs-on: macos-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs: check
+    if: needs.check.outputs.run_ios == 'true'
 
     steps:
       - name: Checkout repository
@@ -197,7 +248,8 @@ jobs:
       - name: Create IPA
         working-directory: Refermie/build/ios/iphoneos
         run: |
-          mkdir Payload
+          rm -rf Payload app.ipa
+          mkdir -p Payload
           cp -r Runner.app Payload/
           zip -r app.ipa Payload
 
@@ -209,21 +261,24 @@ jobs:
 
   # ═══════════════════════════════════════════════
   # JOB 3: Create GitHub Release (after builds)
+  # Runs only if at least one build actually ran
   # ═══════════════════════════════════════════════
   release:
     name: Push to Releases
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: always() && (needs.android.result == 'success' || needs.ios.result == 'success')
     needs: [android, ios]
 
     steps:
       - name: Download Android AAB
+        if: needs.android.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: android-aab
           path: artifacts/android
 
       - name: Download iOS IPA
+        if: needs.ios.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: ios-ipa
@@ -232,6 +287,6 @@ jobs:
       - name: Push to Releases
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "artifacts/android/*,artifacts/ios/*"
+          artifacts: "artifacts/**/*"
           tag: v1.0.${{ github.run_number }}
           token: ${{ secrets.TOKEN }}
