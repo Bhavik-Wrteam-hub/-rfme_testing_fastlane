@@ -97,8 +97,8 @@ jobs:
         with:
           path: |
             ~/.pub-cache
-            Refermie/.dart_tool
-          key: pub-${{ runner.os }}-${{ hashFiles('Refermie/pubspec.lock') }}
+            .dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
           restore-keys: |
             pub-${{ runner.os }}-
 
@@ -121,9 +121,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            Refermie/build
-            Refermie/android/.gradle
-          key: android-build-${{ runner.os }}-${{ hashFiles('Refermie/pubspec.lock', 'Refermie/android/app/build.gradle') }}
+            build
+            android/.gradle
+          key: android-build-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'android/app/build.gradle') }}
           restore-keys: |
             android-build-${{ runner.os }}-
 
@@ -131,12 +131,10 @@ jobs:
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Install dependencies
-        working-directory: Refermie
         run: flutter pub get
 
       # ─── Build AAB only (APK is redundant) ─────
       - name: Build App Bundle (AAB)
-        working-directory: Refermie
         run: flutter build appbundle --release
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
@@ -146,12 +144,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-aab
-          path: Refermie/build/app/outputs/bundle/release/app-release.aab
+          path: build/app/outputs/bundle/release/app-release.aab
 
       # ─── Deploy to Play Store (main/master only) ─
       - name: Write Play Store service account JSON
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        working-directory: Refermie
         run: echo '${{ secrets.PLAY_STORE_JSON }}' > android/fastlane/play-store-key.json
 
       - name: Set up Ruby
@@ -160,25 +157,25 @@ jobs:
         with:
           ruby-version: "3.2"
           bundler-cache: true
-          working-directory: Refermie/android
+          working-directory: android
 
       - name: Install Fastlane
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        working-directory: Refermie/android
+        working-directory: android
         run: gem install fastlane
 
       - name: Deploy to Play Store (Production)
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        working-directory: Refermie/android
+        working-directory: android
         run: fastlane deploy
         env:
           SUPPLY_JSON_KEY: fastlane/play-store-key.json
 
   # ═══════════════════════════════════════════════
-  # JOB 2: iOS Build (macOS required)
+  # JOB 2: iOS Build + TestFlight Deploy
   # ═══════════════════════════════════════════════
   ios:
-    name: iOS Build
+    name: iOS Build & Deploy
     runs-on: macos-latest
     needs: check
     if: needs.check.outputs.run_ios == 'true'
@@ -200,8 +197,8 @@ jobs:
         with:
           path: |
             ~/.pub-cache
-            Refermie/.dart_tool
-          key: pub-${{ runner.os }}-${{ hashFiles('Refermie/pubspec.lock') }}
+            .dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
           restore-keys: |
             pub-${{ runner.os }}-
 
@@ -210,9 +207,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            Refermie/ios/Pods
+            ios/Pods
             ~/Library/Caches/CocoaPods
-          key: pods-${{ runner.os }}-${{ hashFiles('Refermie/ios/Podfile', 'Refermie/pubspec.lock') }}
+          key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile', 'pubspec.lock') }}
           restore-keys: |
             pods-${{ runner.os }}-
 
@@ -221,43 +218,54 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            Refermie/build/ios
+            build/ios
             ~/Library/Developer/Xcode/DerivedData
-          key: ios-derived-${{ runner.os }}-${{ hashFiles('Refermie/ios/**/*.pbxproj', 'Refermie/pubspec.lock') }}
+          key: ios-derived-${{ runner.os }}-${{ hashFiles('ios/**/*.pbxproj', 'pubspec.lock') }}
           restore-keys: |
             ios-derived-${{ runner.os }}-
 
       - name: Install dependencies
-        working-directory: Refermie
         run: flutter pub get
 
       # ─── Install CocoaPods (skip repo update for speed) ─
       - name: Install CocoaPods dependencies
-        working-directory: Refermie/ios
+        working-directory: ios
         run: |
           pod install --repo-update=false || pod install
 
-      # ─── Build iOS with optimizations ──────────
-      - name: Build iOS (no codesign)
-        working-directory: Refermie
-        run: |
-          flutter build ios --no-codesign --release --no-tree-shake-icons
-        env:
-          FLUTTER_BUILD_MODE: release
+      # ─── Pre-compile Flutter (Dart AOT + native) ─
+      - name: Pre-compile Flutter iOS
+        run: flutter build ios --release --no-codesign --no-tree-shake-icons
 
-      - name: Create IPA
-        working-directory: Refermie/build/ios/iphoneos
-        run: |
-          rm -rf Payload app.ipa
-          mkdir -p Payload
-          cp -r Runner.app Payload/
-          zip -r app.ipa Payload
+      # ─── Deploy to TestFlight (main/master only) ─
+      - name: Set up Ruby
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Install Fastlane
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        working-directory: ios
+        run: gem install fastlane
+
+      - name: Deploy to TestFlight
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        working-directory: ios
+        run: fastlane deploy
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
 
       - name: Upload IPA artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
-          path: Refermie/build/ios/iphoneos/app.ipa
+          path: build/ios/ipa/Runner.ipa
 
   # ═══════════════════════════════════════════════
   # JOB 3: Create GitHub Release (after builds)
