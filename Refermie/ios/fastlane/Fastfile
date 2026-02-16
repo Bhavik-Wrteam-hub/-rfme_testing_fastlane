@@ -21,29 +21,7 @@ platform :ios do
     key_content = key_content.gsub("\\n", "\n") if key_content.include?("\\n")
     File.write(api_key_path, key_content)
 
-    # 3. Create ExportOptions.plist file
-    #    Passing a plist FILE (not a hash) bypasses fastlane's local
-    #    provisioning profile detection. This lets xcodebuild resolve
-    #    signing entirely via cloud-managed certificates + API key auth.
-    export_plist_path = "/tmp/ExportOptions.plist"
-    File.write(export_plist_path, <<~PLIST)
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
-      <dict>
-        <key>method</key>
-        <string>app-store</string>
-        <key>signingStyle</key>
-        <string>automatic</string>
-        <key>teamID</key>
-        <string>75X5SQS732</string>
-        <key>uploadSymbols</key>
-        <true/>
-      </dict>
-      </plist>
-    PLIST
-
-    # 4. Build & sign (cloud-managed signing via API key)
+    # 3. Build & sign (cloud-managed signing via API key)
     build_app(
       workspace: "Runner.xcworkspace",
       scheme: "Runner",
@@ -59,19 +37,25 @@ platform :ios do
                      "-authenticationKeyPath '#{api_key_path}' " \
                      "-authenticationKeyID '#{ENV['APP_STORE_CONNECT_KEY_ID']}' " \
                      "-authenticationKeyIssuerID '#{ENV['APP_STORE_CONNECT_ISSUER_ID']}'",
-      export_options: export_plist_path,
+      export_options: {
+        signingStyle: "automatic",
+        teamID: "75X5SQS732",
+        uploadSymbols: true,
+        provisioningProfiles: {
+          "com.refermie.app" => "Automatic"
+        }
+      },
     )
 
-    # 5. Upload to TestFlight
+    # 4. Upload to TestFlight
     upload_to_testflight(
       api_key: api_key,
       skip_waiting_for_build_processing: true,
       skip_submission: false,
     )
 
-    # 6. Clean up temp files
+    # 5. Clean up temp files
     File.delete(api_key_path) if File.exist?(api_key_path)
-    File.delete(export_plist_path) if File.exist?(export_plist_path)
 
   end
 
