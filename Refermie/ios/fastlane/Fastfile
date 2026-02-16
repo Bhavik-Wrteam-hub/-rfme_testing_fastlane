@@ -5,31 +5,53 @@ platform :ios do
   desc "Build, sign, and upload to TestFlight"
   lane :deploy do
 
+    # ── Sanitize env vars (strip trailing whitespace/newlines) ──
+    key_id     = ENV["APP_STORE_CONNECT_KEY_ID"].strip
+    issuer_id  = ENV["APP_STORE_CONNECT_ISSUER_ID"].strip
+    key_content = ENV["APP_STORE_CONNECT_API_KEY_CONTENT"]
+    key_content = key_content.gsub("\\n", "\n") if key_content.include?("\\n")
+
     # ── 1. App Store Connect API Key ──────────────────────────
-    #   This action stores the key in the lane context.
-    #   build_app and upload_to_testflight automatically detect
-    #   and use it — NO manual xcargs needed for authentication.
+    #   Stores the key in lane context AND passes to build_app
+    #   so gym can handle export-phase authentication internally.
     api_key = app_store_connect_api_key(
-      key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
-      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-      key_content: ENV["APP_STORE_CONNECT_API_KEY_CONTENT"],
+      key_id: key_id,
+      issuer_id: issuer_id,
+      key_content: key_content,
       is_key_content_base64: false,
       in_house: false
     )
 
-    # ── 2. Build & sign ───────────────────────────────────────
-    #   gym (build_app) automatically:
-    #     • Writes the .p8 key to a temp file
-    #     • Passes -authenticationKey* flags to BOTH archive & export
-    #     • Passes -allowProvisioningUpdates
-    #   We only need to specify build/export configuration.
+    # ── 2. Write API key for xcodebuild ───────────────────────
+    #   Write to BOTH /tmp (for explicit archive xcargs) AND
+    #   the auto-discovery path (fallback for export phase).
+    tmp_key_path = "/tmp/AuthKey_#{key_id}.p8"
+    File.write(tmp_key_path, key_content)
+
+    auto_dir = File.expand_path("~/.appstoreconnect/private_keys")
+    FileUtils.mkdir_p(auto_dir)
+    auto_key_path = "#{auto_dir}/AuthKey_#{key_id}.p8"
+    File.write(auto_key_path, key_content)
+
+    # ── 3. Build & sign ───────────────────────────────────────
+    #   • xcargs:  passes auth flags to the ARCHIVE phase
+    #              (proven to work across all attempts)
+    #   • api_key: tells gym to handle EXPORT auth internally
+    #              (avoids export_xcargs which caused exit 64)
+    #   • export_options: minimal config for automatic signing
     build_app(
+      api_key: api_key,
       workspace: "Runner.xcworkspace",
       scheme: "Runner",
       export_method: "app-store",
       output_directory: "../build/ios/ipa",
       output_name: "Runner.ipa",
       clean: false,
+      xcargs: "-allowProvisioningUpdates " \
+              "-allowProvisioningDeviceRegistration " \
+              "-authenticationKeyPath #{tmp_key_path} " \
+              "-authenticationKeyID #{key_id} " \
+              "-authenticationKeyIssuerID #{issuer_id}",
       export_options: {
         signingStyle: "automatic",
         teamID: "75X5SQS732",
@@ -37,12 +59,16 @@ platform :ios do
       },
     )
 
-    # ── 3. Upload to TestFlight ───────────────────────────────
+    # ── 4. Upload to TestFlight ───────────────────────────────
     upload_to_testflight(
       api_key: api_key,
       skip_waiting_for_build_processing: true,
       skip_submission: false,
     )
+
+    # ── 5. Clean up ───────────────────────────────────────────
+    File.delete(tmp_key_path) if File.exist?(tmp_key_path)
+    File.delete(auto_key_path) if File.exist?(auto_key_path)
 
   end
 
