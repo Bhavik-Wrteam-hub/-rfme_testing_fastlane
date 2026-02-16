@@ -2,7 +2,7 @@ name: ebroker #! DO NOT CHANGE THIS
 description: Welcome to eBroker.
 
 publish_to: 'none'
-version: 1.0.0+10
+version: 1.0.0+11
 
 environment:
   sdk: ^3.10.0
