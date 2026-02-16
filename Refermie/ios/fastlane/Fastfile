@@ -75,10 +75,16 @@ platform :ios do
       "#{auth}"
     )
 
-    # ── 8. Upload to TestFlight ───────────────────────────────
+    # ── 8. Find the exported IPA (name may vary) ────────────
+    UI.message("Export directory contents: #{Dir.glob("#{export_path}/*")}")
+    ipa_path = Dir.glob("#{export_path}/*.ipa").first
+    UI.user_error!("No IPA found in #{export_path}") unless ipa_path
+    UI.success("Found IPA: #{ipa_path}")
+
+    # ── 9. Upload to TestFlight ───────────────────────────────
     upload_to_testflight(
       api_key: api_key,
-      ipa: "#{export_path}/Runner.ipa",
+      ipa: ipa_path,
       skip_waiting_for_build_processing: true,
       skip_submission: false,
     )
